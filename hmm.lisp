@@ -3,7 +3,8 @@
 (defpackage :hmm-algorithms
   (:nicknames :hmm :cl-hmm)
   (:use :cl)
-  (:export :init-from-file
+  (:export :init-hmm
+	   :init-from-file
 	   :print-to-file
 	   :forward
 	   :backward
@@ -33,7 +34,7 @@
        (loop for j below (cadr (array-dimensions matrix)) do
 	    (let ((cell (aref matrix i j)))
 	      (format stream "~a " cell)))
-       (format stream "%")))
+       (format stream "~%")))
 
 ;;; HMM state will be made up with:
 ;;; states --- internal states
@@ -79,6 +80,9 @@
 		    (length (first lst)))
 	      :initial-contents lst))
 
+(defun parse-number (str &key (start 0) (end (length str)))
+  )
+
 (defun delimiterp (c)
   (or (char= c #\Space)
       (char= c #\Tab)))
@@ -93,7 +97,7 @@
 (defun make-array-per-space (str)
   (let ((nums nil))
     (dolist (num (split-per-space str))
-      (push (parse-integer num) nums))
+      (push (parse-number num) nums))
     (list-array (reverse nums))))
 
 (defun make-matrix-per-space (str-lst)
@@ -103,7 +107,7 @@
       (progn
 	(setf nums nil)
 	(dolist (num (split-per-space str))
-	  (push (parse-integer num) nums))
+	  (push (parse-number num) nums))
 	(progn
 	  (setf nums (reverse nums))
 	  (push nums nums-m))))
@@ -156,6 +160,15 @@
 	    (setf (aref xi tm k l) (/ (aref xi tm k l) sum))))))))
 
 ;;; APIs
+(defun init-hmm (s o i tr m)
+  (declare (type fixnum s)
+	   (type fixnum o)
+	   (type vector i)
+	   (type matrix tr)
+	   (type matrix m))
+  (make-hmm-state :states s :measures o :initial i :transition-matrix tr
+		  :measure-matrix m))
+
 (defun init-from-file (file)
   "Initiate a brand new hmm state from a input file."
   (with-open-file (in file :direction :input)
@@ -209,6 +222,7 @@
       (format out "O = ~d~%" (get-observations hstate))
       (format out "I = <~%")
       (pprint-array out (get-initial-distributions hstate))
+      (format out "~%")
       (format out ">~%")
       (format out "T = <~%")
       (pprint-matrix out (get-transition-matrix hstate))
