@@ -67,10 +67,6 @@
 (defmacro get-measure-matrix (hstate)
   `(hmm-state-measure-matrix ,hstate))
 
-;;; Error handling routines.
-(define-condition input-format-error (error)
-  ((text :initarg :text :reader text)))
-
 ;;; Helpers, to generate a new HMM state from file.
 (defun list-array (lst)
   (make-array (length lst) :initial-contents lst))
@@ -80,8 +76,29 @@
 		    (length (first lst)))
 	      :initial-contents lst))
 
-(defun parse-number (str &key (start 0) (end (length str)))
-  )
+;;; Only when we need to coerce ratio into double-float...
+;;; Or I will keep floatint-point ratio...
+(defun parse-decimal (str &key (start 0) (end (length str)))
+  (let ((sum 0)
+	(digit 0)
+	(in-float nil)
+	(float-depth 0))
+    (do ((point start (1+ point)))
+	((>= point end))
+      (cond ((and (>= (char-code (char str point)) (char-code #\0))
+		  (<= (char-code (char str point)) (char-code #\9)))
+	     (progn
+	       (setf digit (- (char-code (char str point)) 48)
+		     sum (+ (* sum 10) digit))
+	       (if in-float
+		   (incf float-depth))))
+	    ((= (char-code (char str point)) (char-code #\.))
+	     (if in-float
+		 (error "Invalid number format.")
+		 (setf in-float t)))
+	    (t
+	     (error "Invalid number format."))))
+    (/ sum (expt 10 float-depth))))
 
 (defun delimiterp (c)
   (or (char= c #\Space)
@@ -97,7 +114,7 @@
 (defun make-array-per-space (str)
   (let ((nums nil))
     (dolist (num (split-per-space str))
-      (push (parse-number num) nums))
+      (push (parse-decimal num) nums))
     (list-array (reverse nums))))
 
 (defun make-matrix-per-space (str-lst)
@@ -107,7 +124,7 @@
       (progn
 	(setf nums nil)
 	(dolist (num (split-per-space str))
-	  (push (parse-number num) nums))
+	  (push (parse-decimal num) nums))
 	(progn
 	  (setf nums (reverse nums))
 	  (push nums nums-m))))
@@ -176,41 +193,33 @@
       (do ((line (read-line in nil)
 		 (read-line in nil)))
 	  ((null line))
-	(progn
-	  (setf line (string-trim '(#\Space #\Tab) line))
-	  (cond ((string= "S" line :end2 1)
-		 (setf (get-states hstate) (parse-integer line :start 4)))
-		((string= "O" line :end2 1)
-		 (setf (get-observations hstate) (parse-integer line :start 4)))
-		((string= "I" line :end2 1)
+	(cond ((string= "S" line :end2 1)
+	       (setf (get-states hstate) (parse-integer line :start 4)))
+	      ((string= "O" line :end2 1)
+	       (setf (get-observations hstate) (parse-integer line :start 4)))
+	      ((string= "I" line :end2 1)
+	       (setf line (read-line in nil)
+		     (get-initial-distributions hstate) (make-array-per-space line)))
+	      ((string= "T" line :end2 1)
+	       (let ((str-lst nil))
 		 (progn
-		   (setf line (string-trim '(#\Space #\Tab) (read-line in nil)))
-		   (if (null line)
-		       (error 'input-format-error :text "broken HMM file.")
-		       (setf (get-initial-distributions hstate)
-			     (make-array-per-space line)))))
-		((string= "T" line :end2 1)
-		 (let ((str-lst nil))
-		   (progn
-		     (do ((str-line (read-line in nil)
-				    (read-line in nil)))
-			 ((or (string= ">" str-line :end2 1)
-			      (null str-line)))
-		       (push line str-lst))
-		     (setf (get-transition-matrix hstate) (make-matrix-per-space (reverse str-lst))))))
-		((string= "M" line :end2 1)
-		 (let ((str-lst nil))
-		   (progn
-		     (do ((str-line (read-line in nil)
-				    (read-line in nil)))
-			 ((or (string= ">" str-line :end2 1)
-			      (null str-line)))
-		       (push line str-lst))
-		     (setf (get-measure-matrix hstate) (make-matrix-per-space (reverse str-lst))))))	  		   
-		(t
-		 (error 'input-format-error
-			:text "broken HMM file.")))))
-      hstate)))
+		   (do ((str-line (read-line in nil)
+				  (read-line in nil)))
+		       ((string= #\Space str-line :end2 1))
+		     (push str-line str-lst))
+		   (setf (get-transition-matrix hstate) (make-matrix-per-space (reverse str-lst))))))
+	      ((string= "M" line :end2 1)
+	       (let ((str-lst nil))
+		 (progn
+		   (do ((str-line (read-line in nil)
+				  (read-line in nil)))
+		       ((null str-line))
+		     (push str-line str-lst))
+		   (setf (get-measure-matrix hstate) (make-matrix-per-space (reverse str-lst))))))
+	      ((string= #\Space line))
+	      (t
+	       (error "broken HMM file."))))
+    hstate)))
 
 (defun print-to-file (hstate file)
   "Store a hmm state information into a file."
@@ -219,17 +228,18 @@
 		       :if-exists :supersede)
     (progn
       (format out "S = ~d~%" (get-states hstate))
+      (format out " ~%")
       (format out "O = ~d~%" (get-observations hstate))
-      (format out "I = <~%")
+      (format out " ~%")
+      (format out "I =~%")
       (pprint-array out (get-initial-distributions hstate))
       (format out "~%")
-      (format out ">~%")
-      (format out "T = <~%")
+      (format out " ~%")
+      (format out "T =~%")
       (pprint-matrix out (get-transition-matrix hstate))
-      (format out ">~%")
-      (format out "M = <~%")
-      (pprint-matrix out (get-measure-matrix hstate))
-      (format out ">~%"))))
+      (format out " ~%")
+      (format out "M =~%")
+      (pprint-matrix out (get-measure-matrix hstate)))))
 
 (defun forward (hstate times o)
   "Forward algorithm."
