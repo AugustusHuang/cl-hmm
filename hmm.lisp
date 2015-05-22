@@ -1,4 +1,5 @@
 ;;;; Common Lisp Hidden Markov Model Algorithms Package
+;;;; Augustus Huang, May 22 2015
 
 (defpackage :hmm-algorithms
   (:nicknames :hmm :cl-hmm)
@@ -30,11 +31,14 @@
 
 ;;; And so with a matrix...
 (defun pprint-matrix (stream matrix)
-  (loop for i below (car (array-dimensions matrix)) do
-       (loop for j below (cadr (array-dimensions matrix)) do
-	    (let ((cell (aref matrix i j)))
-	      (format stream "~a " cell)))
-       (format stream "~%")))
+  "Pretty print routine to print a matrix."
+  (loop
+     :for i :below (car (array-dimensions matrix))
+     :do (loop
+	    :for j :below (cadr (array-dimensions matrix))
+	    :do (let ((cell (aref matrix i j)))
+		  (format stream "~a " cell)))
+     (format stream "~%")))
 
 ;;; HMM state will be made up with:
 ;;; states --- internal states
@@ -69,42 +73,50 @@
 
 ;;; Helpers, to generate a new HMM state from file.
 (defun list-array (lst)
+  "Wrapper function in order to build an array from a list."
   (make-array (length lst) :initial-contents lst))
 
 (defun list-matrix (lst)
+  "Wrapper function in order to build a matrix from a nested list."
   (make-array (list (length lst)
 		    (length (first lst)))
 	      :initial-contents lst))
 
 ;;; Only when we need to coerce ratio into double-float...
-;;; Or I will keep floatint-point ratio...
+;;; Or I will keep floating-point ratio...
 (defun parse-decimal (str &key (start 0) (end (length str)))
+  "Read string with format 'abc.efg' and parse it."
   (let ((sum 0)
 	(digit 0)
-	(in-float nil)
+	(in-float-p nil)
 	(float-depth 0))
     (do ((point start (1+ point)))
 	((>= point end))
       (cond ((and (>= (char-code (char str point)) (char-code #\0))
 		  (<= (char-code (char str point)) (char-code #\9)))
+	     ;; We are meeting a number.
 	     (progn
 	       (setf digit (- (char-code (char str point)) 48)
 		     sum (+ (* sum 10) digit))
-	       (if in-float
+	       ;; If we are in the floating part...
+	       (if in-float-p
 		   (incf float-depth))))
 	    ((= (char-code (char str point)) (char-code #\.))
-	     (if in-float
+	     (if in-float-p
+		 ;; Can't be in floating part twice.
 		 (error "Invalid number format.")
-		 (setf in-float t)))
+		 (setf in-float-p t)))
 	    (t
 	     (error "Invalid number format."))))
     (/ sum (expt 10 float-depth))))
 
+;;; Could change to ',' or something special.
 (defun delimiterp (c)
   (or (char= c #\Space)
       (char= c #\Tab)))
 
 (defun split-per-space (str &key (delimiterp #'delimiterp))
+  "Split string with specified delimiter."
   (loop :for point = (position-if-not delimiterp str)
      :then (position-if-not delimiterp str :start (1+ end))
      :for end = (and point (position-if delimiterp str :start point))
@@ -112,12 +124,14 @@
      :while end))
 
 (defun make-array-per-space (str)
+  "Make an array from a string with words seperated by delimiters."
   (let ((nums nil))
     (dolist (num (split-per-space str))
       (push (parse-decimal num) nums))
     (list-array (reverse nums))))
 
 (defun make-matrix-per-space (str-lst)
+  "Make a matrix from a list of strings with words seperated by delimiters."
   (let ((nums-m nil)
 	(nums nil))
     (dolist (str str-lst)
@@ -129,7 +143,8 @@
 	  (setf nums (reverse nums))
 	  (push nums nums-m))))
     (list-matrix (reverse nums-m))))
-  
+
+;;; Will be useful to implement the Baum-Welch algorithm.
 (defun get-gamma (hstate tms alpha beta)
   (declare (type fixnum tms)
 	   (type matrix alpha)
@@ -178,6 +193,7 @@
 
 ;;; APIs
 (defun init-hmm (s o i tr m)
+  "Initiate an hmm-state with given arguments."
   (declare (type fixnum s)
 	   (type fixnum o)
 	   (type vector i)
@@ -187,20 +203,24 @@
 		  :measure-matrix m))
 
 (defun init-from-file (file)
-  "Initiate a brand new hmm state from a input file."
+  "Initiate a brand new hmm-state from a input file."
   (with-open-file (in file :direction :input)
     (let ((hstate (make-hmm-state)))
       (do ((line (read-line in nil)
 		 (read-line in nil)))
 	  ((null line))
 	(cond ((string= "S" line :end2 1)
+	       ;; states
 	       (setf (get-states hstate) (parse-integer line :start 4)))
 	      ((string= "O" line :end2 1)
+	       ;; observations
 	       (setf (get-observations hstate) (parse-integer line :start 4)))
 	      ((string= "I" line :end2 1)
+	       ;; initial distributions
 	       (setf line (read-line in nil)
 		     (get-initial-distributions hstate) (make-array-per-space line)))
 	      ((string= "T" line :end2 1)
+	       ;; transition matrix
 	       (let ((str-lst nil))
 		 (progn
 		   (do ((str-line (read-line in nil)
@@ -209,6 +229,7 @@
 		     (push str-line str-lst))
 		   (setf (get-transition-matrix hstate) (make-matrix-per-space (reverse str-lst))))))
 	      ((string= "M" line :end2 1)
+	       ;; measure matrix
 	       (let ((str-lst nil))
 		 (progn
 		   (do ((str-line (read-line in nil)
@@ -217,12 +238,13 @@
 		     (push str-line str-lst))
 		   (setf (get-measure-matrix hstate) (make-matrix-per-space (reverse str-lst))))))
 	      ((string= #\Space line))
+	      ;; jump over space
 	      (t
 	       (error "broken HMM file."))))
     hstate)))
 
 (defun print-to-file (hstate file)
-  "Store a hmm state information into a file."
+  "Store an hmm-state information into a file."
   (with-open-file (out file
 		       :direction :output
 		       :if-exists :supersede)
