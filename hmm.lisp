@@ -4,7 +4,12 @@
 (defpackage :hmm-algorithms
   (:nicknames :hmm :cl-hmm)
   (:use :cl)
-  (:export :init-hmm
+  (:export :get-states
+	   :get-observations
+	   :get-initial
+	   :get-transition
+	   :get-measure
+	   :init-hmm
 	   :init-from-file
 	   :print-to-file
 	   :forward
@@ -56,20 +61,46 @@
   (measure-matrix #2A((0)) :type matrix))
 
 ;;; Wrapper functions.
-(defmacro get-states (hstate)
-  `(hmm-state-states ,hstate))
+(declaim (inline get-states
+		 get-observations
+		 get-initial
+		 get-transition
+		 get-measure
+		 (setf get-states)
+		 (setf get-observations)
+		 (setf get-initial)
+		 (setf get-transition)
+		 (setf get-measure)))
 
-(defmacro get-observations (hstate)
-  `(hmm-state-measures ,hstate))
+(defun get-states (hstate)
+  (hmm-state-states hstate))
 
-(defmacro get-initial-distributions (hstate)
-  `(hmm-state-initial ,hstate))
+(defun (setf get-states) (val hstate)
+  (setf (hmm-state-states hstate) val))
 
-(defmacro get-transition-matrix (hstate)
-  `(hmm-state-transition-matrix ,hstate))
+(defun get-observations (hstate)
+  (hmm-state-measures hstate))
 
-(defmacro get-measure-matrix (hstate)
-  `(hmm-state-measure-matrix ,hstate))
+(defun (setf get-observations) (val hstate)
+  (setf (hmm-state-measures hstate) val))
+
+(defun get-initial (hstate)
+  (hmm-state-initial hstate))
+
+(defun (setf get-initial) (val hstate)
+  (setf (hmm-state-initial hstate) val))
+
+(defun get-transition (hstate)
+  (hmm-state-transition-matrix hstate))
+
+(defun (setf get-transition) (val hstate)
+  (setf (hmm-state-transition-matrix hstate) val))
+
+(defun get-measure-matrix (hstate)
+  (hmm-state-measure-matrix hstate))
+
+(defun (setf get-measure-matrix) (val hstate)
+  (setf (hmm-state-measure-matrix hstate) val))
 
 ;;; Helpers, to generate a new HMM state from file.
 (defun list-array (lst)
@@ -182,8 +213,8 @@
 	    (progn
 	      (setf (aref xi tm i j) (* (aref alpha tm i)
 					(aref beta (+ tm 1) j)
-					(aref (get-transition-matrix hstate) i j)
-					(aref (get-measure-matrix hstate) j (aref o (+ tm 1)))))
+					(aref (get-transition hstate) i j)
+					(aref (get-measure hstate) j (aref o (+ tm 1)))))
 	      (incf sum (aref xi tm i j)))))
 	(do ((k 0 (1+ k)))
 	    ((>= k (get-states hstate)))
@@ -218,7 +249,7 @@
 	      ((string= "I" line :end2 1)
 	       ;; initial distributions
 	       (setf line (read-line in nil)
-		     (get-initial-distributions hstate) (make-array-per-space line)))
+		     (get-initial hstate) (make-array-per-space line)))
 	      ((string= "T" line :end2 1)
 	       ;; transition matrix
 	       (let ((str-lst nil))
@@ -227,7 +258,7 @@
 				  (read-line in nil)))
 		       ((string= #\Space str-line :end2 1))
 		     (push str-line str-lst))
-		   (setf (get-transition-matrix hstate) (make-matrix-per-space (reverse str-lst))))))
+		   (setf (get-transition hstate) (make-matrix-per-space (reverse str-lst))))))
 	      ((string= "M" line :end2 1)
 	       ;; measure matrix
 	       (let ((str-lst nil))
@@ -236,7 +267,7 @@
 				  (read-line in nil)))
 		       ((null str-line))
 		     (push str-line str-lst))
-		   (setf (get-measure-matrix hstate) (make-matrix-per-space (reverse str-lst))))))
+		   (setf (get-measure hstate) (make-matrix-per-space (reverse str-lst))))))
 	      ((string= #\Space line))
 	      ;; jump over space
 	      (t
@@ -254,14 +285,14 @@
       (format out "O = ~d~%" (get-observations hstate))
       (format out " ~%")
       (format out "I =~%")
-      (pprint-array out (get-initial-distributions hstate))
+      (pprint-array out (get-initial hstate))
       (format out "~%")
       (format out " ~%")
       (format out "T =~%")
-      (pprint-matrix out (get-transition-matrix hstate))
+      (pprint-matrix out (get-transition hstate))
       (format out " ~%")
       (format out "M =~%")
-      (pprint-matrix out (get-measure-matrix hstate)))))
+      (pprint-matrix out (get-measure hstate)))))
 
 (defun forward (hstate tms o)
   "Forward algorithm."
@@ -273,8 +304,8 @@
     (progn
       (do ((i 0 (1+ i)))
 	  ((>= i (get-states hstate)))
-	(setf (aref alpha 0 i) (* (aref (get-initial-distributions hstate) i)
-				  (aref (get-measure-matrix hstate) i (aref o 0)))))
+	(setf (aref alpha 0 i) (* (aref (get-initial hstate) i)
+				  (aref (get-measure hstate) i (aref o 0)))))
       (do ((tm 0 (1+ tm)))
 	  ((>= tm (- tms 1)))
 	(do ((j 0 (1+ j)))
@@ -284,8 +315,8 @@
 	    (do ((k 0 (1+ k)))
 		((>= k (get-states hstate)))
 	      (incf sum (* (aref alpha tm k)
-			   (aref (get-transition-matrix hstate) k j))))
-	    (setf (aref alpha (+ 1 tm) j) (* sum (aref (get-measure-matrix hstate) j (aref o (+ 1 tm))))))))
+			   (aref (get-transition hstate) k j))))
+	    (setf (aref alpha (+ 1 tm) j) (* sum (aref (get-measure hstate) j (aref o (+ 1 tm))))))))
       (do ((l 0 (1+ l)))
 	  ((>= l (get-states hstate)))
 	(incf prob (aref alpha (- tms 1) l))))
@@ -310,8 +341,8 @@
 	    (setf sum 0.0)
 	    (do ((j 0 (1+ j)))
 		((>= j (get-states hstate)))
-	      (incf sum (* (aref (get-transition-matrix hstate) k j)
-			   (aref (get-measure-matrix hstate) j (aref o (+ 1 tm)))
+	      (incf sum (* (aref (get-transition hstate) k j)
+			   (aref (get-measure hstate) j (aref o (+ 1 tm)))
 			   (aref beta (+ 1 tm) j))))
 	    (setf (aref beta tm k) sum))))
       (do ((l 0 (1+ l)))
@@ -333,8 +364,8 @@
     (progn
       (do ((i 0 (1+ i)))
 	  ((>= i (get-states hstate)))
-	(setf (aref delta 0 i) (* (aref (get-initial-distributions hstate) i)
-				  (aref (get-measure-matrix hstate) i (aref o 0)))
+	(setf (aref delta 0 i) (* (aref (get-initial hstate) i)
+				  (aref (get-measure hstate) i (aref o 0)))
 	      (aref psi 0 i) 0))
       (do ((tm 1 (1+ tm)))
 	  ((>= tm tms))
@@ -347,11 +378,11 @@
 		((>= k (get-states hstate)))
 	      (progn
 		(setf value (* (aref delta (- tm 1) k)
-			       (aref (get-transition-matrix hstate) k j)))
+			       (aref (get-transition hstate) k j)))
 		(if (> value max-value)
 		    (setf max-value value
 			  max-value-indice k))))
-	    (setf (aref delta tm j) (* max-value (aref (get-measure-matrix hstate) j (aref o tm)))
+	    (setf (aref delta tm j) (* max-value (aref (get-measure hstate) j (aref o tm)))
 		  (aref psi tm j) max-value-indice))))
       (setf (aref q (- tms 1)) 1)
       (do ((l 0 (1+ l)))
