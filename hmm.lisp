@@ -27,21 +27,21 @@
 (defun pprint-array (stream array)
   "Pretty print routine to print a nested vector."
   (loop
-     :with first-time = t
-     :for x :across array
-     :unless first-time
-     :do (write-char #\Space stream) :end
-     :do (princ x stream)
+     with first-time = t
+     for x across array
+     unless first-time
+     do (write-char #\Space stream) end
+     do (princ x stream)
      (setf first-time nil)))
 
 ;;; And so with a matrix...
 (defun pprint-matrix (stream matrix)
   "Pretty print routine to print a matrix."
   (loop
-     :for i :below (car (array-dimensions matrix))
-     :do (loop
-	    :for j :below (cadr (array-dimensions matrix))
-	    :do (let ((cell (aref matrix i j)))
+     for i below (car (array-dimensions matrix))
+     do (loop
+	    for j below (cadr (array-dimensions matrix))
+	    do (let ((cell (aref matrix i j)))
 		  (format stream "~a " cell)))
      (format stream "~%")))
 
@@ -148,11 +148,11 @@
 
 (defun split-per-space (str &key (delimiterp #'delimiterp))
   "Split string with specified delimiter."
-  (loop :for point = (position-if-not delimiterp str)
-     :then (position-if-not delimiterp str :start (1+ end))
-     :for end = (and point (position-if delimiterp str :start point))
-     :when point :collect (subseq str point end)
-     :while end))
+  (loop for point = (position-if-not delimiterp str)
+     then (position-if-not delimiterp str start (1+ end))
+     for end = (and point (position-if delimiterp str start point))
+     when point collect (subseq str point end)
+     while end))
 
 (defun make-array-per-space (str)
   "Make an array from a string with words seperated by delimiters."
