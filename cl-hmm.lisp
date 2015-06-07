@@ -149,8 +149,8 @@
 (defun split-per-space (str &key (delimiterp #'delimiterp))
   "Split string with specified delimiter."
   (loop for point = (position-if-not delimiterp str)
-     then (position-if-not #'delimiterp str :start (1+ end))
-     for end = (and point (position-if #'delimiterp str :start point))
+     then (position-if-not delimiterp str :start (1+ end))
+     for end = (and point (position-if delimiterp str :start point))
      when point collect (subseq str point end)
      while end))
 

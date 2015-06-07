@@ -1,9 +1,10 @@
-(in-package :cl-user)
+(in-package :asdf-user)
+;(in-package :cl-user)
 
-(defpackage :cl-hmm-system
-  (:use :cl :asdf))
+;(defpackage :cl-hmm-system
+ ; (:use :cl :asdf))
 
-(in-package :cl-hmm-system)
+;(in-package :cl-hmm-system)
 
 (defsystem "cl-hmm"
   :description "cl-hmm: a small Hidden Markov Model system."
