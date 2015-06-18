@@ -1,6 +1,8 @@
 ;;;; Common Lisp Hidden Markov Model Algorithms Package
-;;;; Augustus Huang, May 22 2015
+;;;; Author: Augustus Huang
+;;;; Date: May 22 2015
 
+;;; Tested on SBCL and CLISP
 (defpackage :cl-hmm-algorithms
   (:nicknames :hmm :cl-hmm)
   (:use :cl)
@@ -9,6 +11,8 @@
 	   :get-initial
 	   :get-transition
 	   :get-measure
+	   :get-gamma
+	   :get-xi
 	   :init-hmm
 	   :init-from-file
 	   :print-to-file
@@ -26,24 +30,20 @@
 ;;; In order to pretty print an array, implement it.
 (defun pprint-array (stream array)
   "Pretty print routine to print a nested vector."
-  (loop
-     with first-time = t
-     for x across array
-     unless first-time
+  (loop with first-time = t
+     for x across array unless first-time
      do (write-char #\Space stream) end
      do (princ x stream)
-     (setf first-time nil)))
+       (setf first-time nil)))
 
 ;;; And so with a matrix...
 (defun pprint-matrix (stream matrix)
   "Pretty print routine to print a matrix."
-  (loop
-     for i below (car (array-dimensions matrix))
-     do (loop
-	    for j below (cadr (array-dimensions matrix))
-	    do (let ((cell (aref matrix i j)))
-		  (format stream "~a " cell)))
-     (format stream "~%")))
+  (loop for i below (car (array-dimensions matrix)) do
+       (loop for j below (cadr (array-dimensions matrix)) do
+	    (let ((cell (aref matrix i j)))
+	      (format stream "~a " cell)))
+       (format stream "~%")))
 
 ;;; HMM state will be made up with:
 ;;; states --- internal states
